@@ -19,12 +19,17 @@ class LLMClient:
         )
         self.model = model
     
-    def chat(self, messages, model=None):
+    def chat(self, messages, model=None, stream=True):
         try:
             response = self.client.chat.completions.create(
                 model=model or self.model,
-                messages=messages
+                messages=messages,
+                stream=stream
+                
             )
-            return response.choices[0].message.content
+            if stream:
+                return response
+            else:
+                 response.choices[0].message.content
         except Exception as e:
             raise Exception(f"LLM API error: {e}")

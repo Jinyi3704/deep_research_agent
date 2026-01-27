@@ -31,7 +31,16 @@ def main():
         })
         
         try:
-            assistant_message = llm.chat(messages)
+            print("\nAssistant: ", end="", flush=True)
+            assistant_message = llm.chat(messages, stream=True)
+            stream = llm.chat(messages, stream=True)
+            assistant_message = ""
+            for chunk in stream:
+                chunk_content = chunk.choices[0].delta.content
+                if chunk_content:
+                    assistant_message += chunk_content
+                    print(chunk_content, end="", flush=True)
+            print()
             messages.append({
                 "role": "assistant",
                 "content": assistant_message
