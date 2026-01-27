@@ -8,6 +8,7 @@ class LLMClient:
     def __init__(self):
         api_key = os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("OPENAI_BASE_URL")
+        model = os.getenv("MODEL")
         
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in .env file")
@@ -16,7 +17,7 @@ class LLMClient:
             api_key=api_key,
             base_url=base_url if base_url else None
         )
-        self.model = "gpt-4o-mini"
+        self.model = model
     
     def chat(self, messages, model=None):
         try:
