@@ -29,7 +29,6 @@ class LLMClient:
             )
             if stream:
                 return response
-            else:
-                 response.choices[0].message.content
+            return response.choices[0].message.content
         except Exception as e:
             raise Exception(f"LLM API error: {e}")
