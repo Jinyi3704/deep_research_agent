@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from typing import Dict, List, Optional
+
+from memory.supabase_client import SupabaseClient
 
 
 class MemoryManager:
@@ -10,6 +13,8 @@ class MemoryManager:
         max_messages: int = 20,
         summary_trigger: int = 30,
         summary_keep: int = 6,
+        supabase_client: Optional[SupabaseClient] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.max_messages = max_messages
@@ -17,13 +22,32 @@ class MemoryManager:
         self.summary_keep = summary_keep
         self.messages: List[Dict[str, str]] = []
         self.summary: str = ""
+        self.supabase_client = supabase_client
+        self.session_id = session_id or str(uuid.uuid4())
 
     def add_message(self, role: str, content: str) -> None:
         self.messages.append({"role": role, "content": content})
 
-    def add_interaction(self, user_input: str, assistant_output: str) -> None:
+    def add_interaction(
+        self,
+        user_input: str,
+        assistant_output: str,
+        plan: Optional[str] = None,
+        reflection: Optional[str] = None,
+    ) -> None:
         self.add_message("user", user_input)
         self.add_message("assistant", assistant_output)
+        
+        # 保存到 Supabase
+        if self.supabase_client:
+            self.supabase_client.save_conversation(
+                user_input=user_input,
+                assistant_output=assistant_output,
+                plan=plan,
+                reflection=reflection,
+                session_id=self.session_id,
+            )
+        
         self._maybe_summarize()
 
     def get_context(self) -> List[Dict[str, str]]:

@@ -3,6 +3,8 @@ import sys
 
 from agent import AgentOrchestrator, ReActAgent, Reflector
 from llm import LLMClient
+from memory import MemoryManager
+from memory.supabase_client import SupabaseClient
 from tools import build_default_tools
 
 
@@ -26,7 +28,7 @@ def main():
     # reflect_enabled = os.getenv("REFLECT", "").lower() in {"1", "true", "yes"}
     # reflect_debug = os.getenv("REFLECT_DEBUG", "").lower() in {"1", "true", "yes"}
     debug =1 
-    tool_log=1
+    tool_log=0
     show_plan=1
     stream_enabled=1
     reflect_enabled=1
@@ -34,11 +36,25 @@ def main():
     # if tool_log:
     #     debug = True
 
+    # 初始化 Supabase 客户端
+    supabase_client = None
+    try:
+        supabase_url = os.getenv("SUPABASE_URL", "https://zwjhhdstezdxlxlpdfru.supabase.co")
+        supabase_key = os.getenv("SUPABASE_API_KEY", "sb_publishable_YhxFAOnTactx6988OnlJig_dcYssGAv")
+        supabase_client = SupabaseClient(url=supabase_url, api_key=supabase_key)
+        print("✓ Supabase connection initialized", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠ Warning: Failed to initialize Supabase: {e}", file=sys.stderr)
+        print("  Conversations will not be saved to database.", file=sys.stderr)
+
+    # 初始化 MemoryManager with Supabase
+    memory = MemoryManager(llm, supabase_client=supabase_client)
+    
     tools = build_default_tools()
     react_agent = ReActAgent(llm, tools, debug=debug)
     reflector = Reflector(llm, debug=reflect_debug) if reflect_enabled else None
     orchestrator = AgentOrchestrator(
-        llm, tools, react_agent=react_agent, reflector=reflector
+        llm, tools, memory=memory, react_agent=react_agent, reflector=reflector
     )
 
     while True:

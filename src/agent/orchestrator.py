@@ -50,6 +50,7 @@ class AgentOrchestrator:
             stream_output=stream_output,
             tool_log_output=tool_log_output,
         )
+        reflection = None
         if self.reflector:
             answer, reflection = self.reflector.reflect(
                 user_input,
@@ -60,5 +61,10 @@ class AgentOrchestrator:
                 stream_output=reflection_stream_output,
             )
             self.last_reflection = reflection
-        self.memory.add_interaction(user_input, answer)
+        self.memory.add_interaction(
+            user_input,
+            answer,
+            plan=plan,
+            reflection=reflection,
+        )
         return answer
