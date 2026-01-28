@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import ast
+import subprocess
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
+
+from tools.doc_reader import read_doc_tool
 
 
 @dataclass
@@ -72,6 +75,29 @@ def _calculator_tool(args: Dict[str, Any]) -> str:
         return f"Error: {exc}"
 
 
+def _pip_install_tool(args: Dict[str, Any]) -> str:
+    package = args.get("package") or args.get("name") or args.get("input")
+    if not package:
+        return "Error: missing 'package'"
+    try:
+        proc = subprocess.run(
+            ["pip", "install", str(package)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        return f"Error: failed to run pip: {exc}"
+
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    if proc.returncode != 0:
+        return f"pip install failed (code={proc.returncode})\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    if stderr:
+        return f"pip install succeeded with warnings:\n{stdout}\n{stderr}"
+    return stdout or "pip install succeeded"
+
+
 def build_default_tools() -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(
@@ -84,6 +110,41 @@ def build_default_tools() -> ToolRegistry:
                 "required": ["expression"],
             },
             func=_calculator_tool,
+        )
+    )
+    registry.register(
+        Tool(
+            name="read_doc",
+            description="Read a .doc or .docx file and return extracted plain text.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the .doc/.docx file"},
+                    "max_chars": {
+                        "type": "integer",
+                        "description": "Optional max chars to return (truncates output).",
+                    },
+                },
+                "required": ["path"],
+            },
+            func=read_doc_tool,
+        )
+    )
+    registry.register(
+        Tool(
+            name="pip_install",
+            description="Install a Python package using pip.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "package": {
+                        "type": "string",
+                        "description": "Package spec, e.g., 'requests' or 'requests==2.32.3'",
+                    }
+                },
+                "required": ["package"],
+            },
+            func=_pip_install_tool,
         )
     )
     return registry

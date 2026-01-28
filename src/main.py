@@ -28,7 +28,7 @@ def main():
     # reflect_enabled = os.getenv("REFLECT", "").lower() in {"1", "true", "yes"}
     # reflect_debug = os.getenv("REFLECT_DEBUG", "").lower() in {"1", "true", "yes"}
     debug =1 
-    tool_log=0
+    tool_log=1
     show_plan=1
     stream_enabled=1
     reflect_enabled=1
