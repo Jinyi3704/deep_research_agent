@@ -42,8 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created
 如果你想通过环境变量配置，可以在 `.env` 文件中添加：
 
 ```env
-SUPABASE_URL=https://zwjhhdstezdxlxlpdfru.supabase.co
-SUPABASE_API_KEY=sb_publishable_YhxFAOnTactx6988OnlJig_dcYssGAv
+SUPABASE_URL=
+SUPABASE_API_KEY=
 ```
 
 **注意**：当前代码中已经硬编码了你的 Supabase 配置，所以这一步是可选的。如果你想使用环境变量，可以修改 `src/main.py` 中的相关代码。
