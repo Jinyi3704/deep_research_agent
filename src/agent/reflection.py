@@ -49,6 +49,7 @@ class Reflector:
         answer: str,
         context: Optional[List[Dict[str, str]]] = None,
         plan: Optional[str] = None,
+        skill_context: str = "",
         log_output=None,
         stream_output=None,
     ) -> Tuple[str, str]:
@@ -61,6 +62,9 @@ class Reflector:
             "Final: <final answer>\n"
             "Return only this format."
         )
+        # 注入专家经验
+        if skill_context:
+            system_prompt += skill_context
         messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
         if context:
             messages.extend(context)

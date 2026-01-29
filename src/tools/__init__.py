@@ -75,6 +75,41 @@ def _calculator_tool(args: Dict[str, Any]) -> str:
         return f"Error: {exc}"
 
 
+def _read_file_tool(args: Dict[str, Any]) -> str:
+    """读取文本文件内容（支持 .md, .txt, .py, .json 等）"""
+    import os
+    
+    path = args.get("path") or args.get("file") or args.get("input")
+    if not path:
+        return "Error: missing 'path'"
+    
+    path = str(path)
+    if not os.path.isfile(path):
+        return f"Error: file not found: {path}"
+    
+    # 检查文件大小（限制 500KB）
+    max_size = 500 * 1024
+    file_size = os.path.getsize(path)
+    if file_size > max_size:
+        return f"Error: file too large ({file_size} bytes > {max_size} bytes limit)"
+    
+    # 读取文件
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        return f"Error: file is not valid UTF-8 text: {path}"
+    except Exception as exc:
+        return f"Error reading file: {exc}"
+    
+    # 可选截断
+    max_chars = args.get("max_chars")
+    if max_chars and isinstance(max_chars, int) and len(content) > max_chars:
+        content = content[:max_chars] + f"\n\n... [truncated, showing {max_chars} of {len(content)} chars]"
+    
+    return content
+
+
 def _pip_install_tool(args: Dict[str, Any]) -> str:
     package = args.get("package") or args.get("name") or args.get("input")
     if not package:
@@ -145,6 +180,27 @@ def build_default_tools() -> ToolRegistry:
                 "required": ["package"],
             },
             func=_pip_install_tool,
+        )
+    )
+    registry.register(
+        Tool(
+            name="read_file",
+            description="Read a text file and return its contents. Supports .md, .txt, .py, .json, .yaml, .sh and other text files.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the text file to read",
+                    },
+                    "max_chars": {
+                        "type": "integer",
+                        "description": "Optional max chars to return (truncates output).",
+                    },
+                },
+                "required": ["path"],
+            },
+            func=_read_file_tool,
         )
     )
     return registry

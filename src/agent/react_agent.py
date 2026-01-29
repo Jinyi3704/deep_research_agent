@@ -15,7 +15,7 @@ class ReActAgent:
         self.debug = debug
         self.history: List[Dict[str, str]] = []
 
-    def _system_prompt(self, plan: Optional[str] = None) -> str:
+    def _system_prompt(self, plan: Optional[str] = None, skill_context: str = "") -> str:
         tool_lines = []
         for tool in self.tools.list():
             params = json.dumps(tool.parameters, ensure_ascii=True)
@@ -26,6 +26,9 @@ class ReActAgent:
             "You are a tool-using assistant. Use tools when they are helpful.",
             f"Available tools:\n{tools_block}",
         ]
+        # 注入专家经验
+        if skill_context:
+            parts.append(skill_context)
         if plan:
             parts.append("Plan:\n" + plan + "\nFollow the plan but adjust if needed.")
         parts.extend(
@@ -119,11 +122,12 @@ class ReActAgent:
         user_input: str,
         context: Optional[List[Dict[str, str]]] = None,
         plan: Optional[str] = None,
+        skill_context: str = "",
         stream_output=None,
         tool_log_output=None,
     ) -> str:
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": self._system_prompt(plan)}
+            {"role": "system", "content": self._system_prompt(plan, skill_context)}
         ]
         if context:
             messages.extend(context)

@@ -12,6 +12,7 @@ class Planner:
         self,
         user_input: str,
         context: Optional[List[Dict[str, str]]] = None,
+        skill_context: str = "",
         stream_output=None,
     ) -> str:
         system_prompt = (
@@ -19,6 +20,9 @@ class Planner:
             f"with at most {self.max_steps} steps. Use numbered steps. "
             "Return only the plan."
         )
+        # 如果有 skill_context，将专家经验注入到 system prompt
+        if skill_context:
+            system_prompt += skill_context
         messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
         if context:
             messages.extend(context)
