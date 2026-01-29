@@ -1,4 +1,4 @@
-# AI Deep Research Agent
+# AI Deep Research Agent for contract review
 
 一个用于构建「深度研究型 AI Agent」的训练项目，基于 OpenAI 官方 SDK，从零实现 **规划 → 工具调用 → 反思 → 记忆 / 持久化** 的完整链路。
 
