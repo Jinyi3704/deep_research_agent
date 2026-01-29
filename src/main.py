@@ -39,8 +39,8 @@ def main():
     # 初始化 Supabase 客户端
     supabase_client = None
     try:
-        supabase_url = os.getenv("SUPABASE_URL", "https://zwjhhdstezdxlxlpdfru.supabase.co")
-        supabase_key = os.getenv("SUPABASE_API_KEY", "sb_publishable_YhxFAOnTactx6988OnlJig_dcYssGAv")
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_API_KEY")
         supabase_client = SupabaseClient(url=supabase_url, api_key=supabase_key)
         print("✓ Supabase connection initialized", file=sys.stderr)
     except Exception as e:
