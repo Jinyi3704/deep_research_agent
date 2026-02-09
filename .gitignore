@@ -14,3 +14,6 @@ venv/
 env/
 *.docx
 .backlog
+reports/
+logs/
+.pdf

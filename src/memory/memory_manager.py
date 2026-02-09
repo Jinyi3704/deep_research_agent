@@ -96,6 +96,7 @@ class MemoryManager:
             {"role": "system", "content": prompt},
             {"role": "user", "content": summary_input},
         ]
-        summary_text = self.llm.chat(messages, stream=False) or ""
+        response = self.llm.chat(messages, stream=False)
+        summary_text = response.content if response and hasattr(response, 'content') and response.content else ""
         self.summary = summary_text.strip()
         self.messages = self.messages[-self.summary_keep :]
