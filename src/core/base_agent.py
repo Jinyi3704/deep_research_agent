@@ -80,8 +80,14 @@ class LoggingHook(AgentHook):
     """
     日志钩子
     
-    输出 Agent 执行过程的日志。
+    输出 Agent 执行过程的日志，包括：
+    - Step 编号
+    - LLM 返回的工具调用名称和参数
+    - 工具执行结果（截断过长内容）
     """
+    
+    MAX_RESULT_LEN = 300  # 工具结果最大显示长度
+    MAX_ARG_LEN = 200     # 单个参数值最大显示长度
     
     def __init__(
         self,
@@ -90,32 +96,59 @@ class LoggingHook(AgentHook):
     ):
         self.log_func = log_func or print
         self.verbose = verbose
+        self._current_step = 0
     
     def _log(self, message: str) -> None:
         self.log_func(message)
     
+    def _truncate(self, text: str, max_len: int) -> str:
+        """截断过长文本"""
+        if len(text) <= max_len:
+            return text
+        return text[:max_len] + f"...（共{len(text)}字）"
+    
+    def _format_args(self, arguments: dict[str, Any]) -> str:
+        """格式化工具参数为可读形式"""
+        if not arguments:
+            return "(无参数)"
+        parts = []
+        for key, value in arguments.items():
+            val_str = str(value)
+            val_str = self._truncate(val_str, self.MAX_ARG_LEN)
+            parts.append(f"    {key}: {val_str}")
+        return "\n".join(parts)
+    
     def on_agent_start(self, input: str, context: Optional[list[Message]] = None) -> None:
+        self._current_step = 0
         if self.verbose:
-            self._log(f"[agent] Starting with input: {input[:100]}...")
+            self._log(f"[agent] 开始执行，输入: {input[:100]}...")
     
     def on_agent_end(self, result: AgentResult) -> None:
         if self.verbose:
-            self._log(f"[agent] Finished with reason: {result.finish_reason}")
-    
-    def on_tool_start(self, tool_call: ToolCall) -> None:
-        args_str = str(tool_call.arguments)
-        self._log(f"[tool] Calling {tool_call.name}({args_str})")
-    
-    def on_tool_end(self, tool_call: ToolCall, result: ToolResult) -> None:
-        status = "✓" if result.success else "✗"
-        self._log(f"[tool] {tool_call.name} {status} -> {result.content}")
+            self._log(f"[agent] 执行完毕，原因: {result.finish_reason}，共 {self._current_step} 步")
     
     def on_step(self, step: int, message: Optional[str] = None) -> None:
+        self._current_step = step
         if self.verbose:
-            self._log(f"[step {step}] {message or ''}")
+            self._log(f"\n{'─' * 40}\n[step {step}] {message or ''}")
+    
+    def on_tool_start(self, tool_call: ToolCall) -> None:
+        args_formatted = self._format_args(tool_call.arguments)
+        self._log(
+            f"[step {self._current_step}] 调用工具: {tool_call.name}\n"
+            f"  参数:\n{args_formatted}"
+        )
+    
+    def on_tool_end(self, tool_call: ToolCall, result: ToolResult) -> None:
+        status = "✓ 成功" if result.success else "✗ 失败"
+        content_display = self._truncate(result.content, self.MAX_RESULT_LEN)
+        self._log(
+            f"[step {self._current_step}] 工具结果: {tool_call.name} {status}\n"
+            f"  返回: {content_display}"
+        )
     
     def on_error(self, error: Exception) -> None:
-        self._log(f"[error] {error}")
+        self._log(f"[step {self._current_step}] 错误: {error}")
 
 
 class RunLogHook(AgentHook):
@@ -124,32 +157,75 @@ class RunLogHook(AgentHook):
     
     将每次大模型输出和工具输出追加到指定列表，
     便于保存为「大模型与工具」日志（与会话日志一起保存）。
+    
+    记录内容包括：
+    - 当前 step 编号
+    - LLM 响应内容及工具调用详情（名称 + 参数）
+    - 工具执行结果（名称 + 传入参数 + 返回内容）
     """
+
+    MAX_RESULT_LEN = 1000  # 工具结果在日志中的最大长度
 
     def __init__(self, log_list: List[dict]) -> None:
         self._log_list = log_list
+        self._current_step = 0
 
     def _append(self, role: str, content: str) -> None:
         self._log_list.append({
             "time": datetime.now().strftime("%H:%M:%S"),
+            "step": self._current_step,
             "role": role,
             "content": content,
         })
+
+    def _format_tool_call(self, tc: ToolCall) -> str:
+        """格式化单个工具调用为可读字符串"""
+        lines = [f"**{tc.name}**"]
+        if tc.arguments:
+            for key, value in tc.arguments.items():
+                val_str = str(value)
+                if len(val_str) > 500:
+                    val_str = val_str[:500] + f"...（共{len(val_str)}字）"
+                lines.append(f"  - {key}: {val_str}")
+        return "\n".join(lines)
+
+    def on_step(self, step: int, message: Optional[str] = None) -> None:
+        self._current_step = step
 
     def on_llm_end(self, response: LLMResponse) -> None:
         parts = []
         if response.content:
             parts.append(response.content)
         if response.tool_calls:
-            names = [tc.name for tc in response.tool_calls]
-            parts.append(f"\n[工具调用] {', '.join(names)}")
+            parts.append("\n---\n**工具调用详情：**")
+            for tc in response.tool_calls:
+                parts.append(self._format_tool_call(tc))
         self._append("大模型", "\n".join(parts) if parts else "(无文本)")
 
     def on_tool_end(self, tool_call: ToolCall, result: ToolResult) -> None:
-        header = f"{tool_call.name}"
-        if not result.success and result.error:
-            header += f" (失败: {result.error})"
-        self._append("工具", f"{header}\n\n{result.content}")
+        status = "✓ 成功" if result.success else f"✗ 失败: {result.error}"
+        
+        # 格式化传入参数
+        args_lines = []
+        if tool_call.arguments:
+            for key, value in tool_call.arguments.items():
+                val_str = str(value)
+                if len(val_str) > 300:
+                    val_str = val_str[:300] + f"...（共{len(val_str)}字）"
+                args_lines.append(f"  - {key}: {val_str}")
+        args_section = "\n".join(args_lines) if args_lines else "  (无参数)"
+        
+        # 截断过长的返回结果
+        content = result.content
+        if len(content) > self.MAX_RESULT_LEN:
+            content = content[:self.MAX_RESULT_LEN] + f"\n...（结果已截断，原文共{len(result.content)}字）"
+        
+        self._append(
+            "工具",
+            f"**{tool_call.name}** ({status})\n\n"
+            f"**传入参数：**\n{args_section}\n\n"
+            f"**返回结果：**\n{content}",
+        )
 
 
 class BaseAgent(ABC):

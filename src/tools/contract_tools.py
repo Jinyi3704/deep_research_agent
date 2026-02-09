@@ -31,14 +31,14 @@ class ManageIssuesTool(BaseTool):
     def schema(self) -> ToolSchema:
         return ToolSchema(
             name="manage_issues",
-            description="管理合同审核问题点。支持的操作：add（添加）、update（更新）、delete（删除）、list（列出）、confirm（确认）、reject（拒绝）、get_current_section（获取当前章节）、next_section（下一章节）、prev_section（上一章节）、export（导出报告）",
+            description="管理合同审核问题点。支持的操作：batch_add（批量添加，推荐）、add（单条添加）、update（更新）、delete（删除）、list（列出）、confirm（确认）、reject（拒绝）、get_current_section（获取当前章节）、next_section（下一章节）、prev_section（上一章节）、export（导出报告）",
             parameters={
                 "type": "object",
                 "properties": {
                     "operation": {
                         "type": "string",
                         "description": "操作类型",
-                        "enum": ["add", "update", "delete", "list", "confirm", "reject", "get_current_section", "next_section", "prev_section", "export"],
+                        "enum": ["batch_add", "add", "update", "delete", "list", "confirm", "reject", "get_current_section", "next_section", "prev_section", "export"],
                     },
                     "issue_id": {
                         "type": "string",
@@ -65,6 +65,10 @@ class ManageIssuesTool(BaseTool):
                         "type": "string",
                         "description": "用户反馈（用于 reject 操作）",
                     },
+                    "issues_json": {
+                        "type": "string",
+                        "description": '批量添加的问题点 JSON 数组（用于 batch_add 操作）。格式：[{"clause":"条款内容","problem":"问题描述","severity":"high/medium/low","suggestion":"修改建议"}, ...]',
+                    },
                 },
                 "required": ["operation"],
             },
@@ -79,6 +83,7 @@ class ManageIssuesTool(BaseTool):
         severity: Optional[str] = None,
         suggestion: Optional[str] = None,
         feedback: Optional[str] = None,
+        issues_json: Optional[str] = None,
     ) -> str:
         """执行问题点管理操作"""
         
@@ -90,6 +95,9 @@ class ManageIssuesTool(BaseTool):
         
         elif operation == "prev_section":
             return self._prev_section()
+        
+        elif operation == "batch_add":
+            return self._batch_add_issues(issues_json)
         
         elif operation == "add":
             return self._add_issue(clause, problem, severity, suggestion)
@@ -147,6 +155,63 @@ class ManageIssuesTool(BaseTool):
             return "已经是第一个章节了。"
         
         return f"已切换到章节 {section.index + 1}/{self._state.total_sections}：{section.title}"
+    
+    def _batch_add_issues(self, issues_json: Optional[str]) -> str:
+        """批量添加问题点"""
+        if not issues_json:
+            return "错误：batch_add 操作需要提供 issues_json 参数（JSON 数组）"
+        
+        try:
+            issues_list = json.loads(issues_json)
+        except json.JSONDecodeError as e:
+            return f"错误：issues_json 格式无效，请提供合法的 JSON 数组。解析错误：{e}"
+        
+        if not isinstance(issues_list, list) or len(issues_list) == 0:
+            return "错误：issues_json 必须是非空的 JSON 数组"
+        
+        added = []
+        errors = []
+        
+        for i, item in enumerate(issues_list):
+            if not isinstance(item, dict):
+                errors.append(f"第 {i + 1} 项不是有效对象")
+                continue
+            
+            clause = item.get("clause")
+            problem = item.get("problem")
+            severity_str = item.get("severity")
+            suggestion = item.get("suggestion")
+            
+            if not all([clause, problem, severity_str, suggestion]):
+                errors.append(f"第 {i + 1} 项缺少必要字段（需要 clause, problem, severity, suggestion）")
+                continue
+            
+            try:
+                sev = Severity(severity_str)
+            except ValueError:
+                errors.append(f"第 {i + 1} 项严重程度无效 '{severity_str}'，应为 high/medium/low")
+                continue
+            
+            issue = self._state.add_issue(
+                clause=clause,
+                problem=problem,
+                severity=sev,
+                suggestion=suggestion,
+            )
+            added.append(f"[{issue.id}] {problem}")
+        
+        # 构建返回消息
+        parts = []
+        if added:
+            parts.append(f"已批量添加 {len(added)} 个问题点：")
+            for desc in added:
+                parts.append(f"  - {desc}")
+        if errors:
+            parts.append(f"\n{len(errors)} 项添加失败：")
+            for err in errors:
+                parts.append(f"  - {err}")
+        
+        return "\n".join(parts) if parts else "未添加任何问题点"
     
     def _add_issue(
         self,

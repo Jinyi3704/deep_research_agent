@@ -28,7 +28,9 @@ def save_session_log(logs: List[dict], contract_name: str = "") -> str:
         f.write("\n---\n\n")
 
         for entry in logs:
-            f.write(f"## [{entry['time']}] {entry['role']}\n\n")
+            step = entry.get('step', '')
+            step_str = f" Step {step}" if step else ""
+            f.write(f"## [{entry['time']}{step_str}] {entry['role']}\n\n")
             f.write(f"{entry['content']}\n\n")
 
     return filepath
